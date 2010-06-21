@@ -1,0 +1,11 @@
+Purpose: Monitor IP address on a network device and invoke user-specified
+commands if it changes
+
+ip-monitor: run a command whenever the IP address of a network interface changes
+Usage: ip-monitor [options] [<command> [args]]
+Options:
+    --dev <dev>     Specify network device to monitor for IP changes (def: eth0)
+    --[no]log       Log IP changes to /var/log/ip-monitor (def: disabled)
+    --[no]passip    Append new IP address as an additional argument to <command>
+                    (def: disabled)
+One of --log or <command> must be specified.

@@ -1,0 +1,112 @@
+#!/usr/bin/perl
+
+# Author: Josh Holtrop
+# Date: 2010-06-21
+# Purpose: Monitor IP address on a network device and invoke user-specified
+# commands if it changes
+
+use strict;
+use warnings;
+use Getopt::Long qw(:config require_order);
+
+my $LAST_IP_FILE = '/var/run/ip-monitor';
+my $IP_LOG_FILE = '/var/log/ip-monitor';
+
+sub usage
+{
+    print <<EOU;
+$0: run a command whenever the IP address of a network interface changes
+Usage: $0 [options] [<command> [args]]
+Options:
+    --dev <dev>     Specify network device to monitor for IP changes (def: eth0)
+    --[no]log       Log IP changes to /var/log/ip-monitor (def: disabled)
+    --[no]passip    Append new IP address as an additional argument to <command>
+                    (def: disabled)
+One of --log or <command> must be specified.
+EOU
+}
+
+sub getLastIP
+{
+    my $last_ip = '';
+    if (open(my $fh, '<', $LAST_IP_FILE))
+    {
+        my $line = <$fh>;
+        chomp($line);
+        $last_ip = $line if ($line =~ /^\d+\.\d+\.\d+\.\d+$/);
+        close($fh);
+    }
+    return $last_ip;
+}
+
+sub getCurrentIP
+{
+    my ($dev) = @_;
+    my $ip = '';
+    open(my $fh, '-|', "ip addr show $dev") or die $!;
+    while (my $line = <$fh>)
+    {
+        if ($line =~ /^\s*inet\s+(\d+\.\d+\.\d+\.\d+)/)
+        {
+            $ip = $1;
+            last;
+        }
+    }
+    close($fh);
+    return $ip;
+}
+
+sub recordIP
+{
+    my ($ip) = @_;
+    open(my $fh, '>', $LAST_IP_FILE);
+    print $fh "$ip\n";
+    close($fh);
+}
+
+sub logIP
+{
+    my ($ip) = @_;
+    open(my $fh, '>>', '/var/log/ip-monitor');
+    my ($sec, $min, $hour, $mday, $mon, $year) = localtime();
+    $year += 1900;
+    $mon++;
+    printf $fh ("%04d-%02d-%02d %02d:%02d:%02d %s\n", $year, $mon, $mday,
+        $hour, $min, $sec, $ip);
+    close($fh);
+}
+
+sub main
+{
+    my $log = 0;
+    my $dev = 'eth0';
+    my $passip = 0;
+    my $help = 0;
+    GetOptions('log!' => \$log,
+               'dev=s' => \$dev,
+               'passip!' => \$passip,
+               'help' => \$help);
+    if ($help)
+    {
+        usage();
+        return 0;
+    }
+    my @cmd = @ARGV;
+    if ($#cmd < 0 && !$log)
+    {
+        usage();
+        return 1;
+    }
+    my $last_ip = getLastIP();
+    my $current_ip = getCurrentIP($dev);
+    if ($last_ip ne $current_ip)
+    {
+        logIP($current_ip) if ($log);
+        push(@cmd, $current_ip) if ($passip);
+        system(@cmd);
+        recordIP($current_ip);
+    }
+    return 0;
+}
+
+exit(main());
