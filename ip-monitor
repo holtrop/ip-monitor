@@ -12,6 +12,8 @@ use Getopt::Long qw(:config require_order);
 my $LAST_IP_FILE = '/var/run/ip-monitor';
 my $IP_LOG_FILE = '/var/log/ip-monitor';
 
+$ENV{'PATH'} .= ':/sbin';
+
 sub usage
 {
     print <<EOU;
